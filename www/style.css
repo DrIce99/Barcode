@@ -1,0 +1,48 @@
+:root {
+    --bg-color: #121212;
+    --card-bg: #1e1e1e;
+    --primary: #00adb5;
+    --text: #eeeeee;
+    --muted: #888888;
+}
+
+body {
+    margin: 0; padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background-color: var(--bg-color); color: var(--text);
+    display: flex; justify-content: center; align-items: center; min-height: 100vh;
+}
+
+#app-container { width: 100%; max-width: 450px; padding: 20px; box-sizing: border-box; }
+.card { background: var(--card-bg); padding: 30px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); text-align: center; }
+.logo { color: var(--primary); font-size: 2rem; margin: 0 0 10px 0; letter-spacing: 1px; }
+
+.btn-primary, .btn-secondary {
+    border: none; padding: 15px 30px; font-size: 1rem; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%; margin-top: 15px; transition: opacity 0.2s;
+}
+.btn-primary { background-color: var(--primary); color: white; box-shadow: 0 4px 15px rgba(0, 173, 181, 0.3); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-secondary { background: #333; color: #ccc; }
+
+/* Session Layout Components */
+.session-header { margin-bottom: 15px; }
+.badge { background: rgba(0, 173, 181, 0.15); color: var(--primary); padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; }
+#session-barcode { font-size: 1.8rem; margin: 10px 0; color: white; letter-spacing: 1px; }
+hr { border: 0; height: 1px; background: rgba(255,255,255,0.1); margin: 20px 0; }
+.session-status { text-align: left; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 10px; margin-bottom: 20px; }
+.status-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.95rem; }
+.status-row:last-child { margin-bottom: 0; }
+.text-muted { color: var(--muted); font-size: 0.85rem; word-break: break-all; }
+
+/* Loader & Popups */
+.loader { border: 3px solid rgba(255,255,255,0.1); width: 28px; height: 28px; border-radius: 50%; border-left-color: var(--primary); margin: 20px auto; animation: spin 1s linear infinite; }
+#session-uploader { margin: 15px 0; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; }
+#session-uploader p { margin: 5px 0 0 0; font-size: 0.85rem; color: var(--primary); }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+#custom-popup-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); display: flex; justify-content: center; align-items: center; z-index: 9999; }
+#custom-popup-card { background: var(--card-bg); padding: 25px; border-radius: 16px; width: 85%; max-width: 340px; text-align: center; border: 1px solid rgba(255,255,255,0.05); }
+#popup-buttons { display: flex; gap: 10px; }
+
+/* Toast Notification style */
+.custom-toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #222; border: 1px solid var(--primary); color: white; padding: 12px 24px; border-radius: 30px; font-size: 0.9rem; z-index: 10000; box-shadow: 0 5px 20px rgba(0,0,0,0.4); pointer-events: none; }

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scan&Drive Pro</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+</head>
+<body>
+
+    <div id="app-container">
+        <!-- STATO: ATTESA_AUTENTICAZIONE -->
+        <div class="card state-view" id="view-auth">
+            <h2>Verifica Accesso</h2>
+            <p>Connessione sicura a Google Drive...</p>
+            <div class="loader"></div>
+        </div>
+
+        <!-- STATO: ATTESA_SCAN -->
+        <div class="card state-view" id="view-scan" style="display: none; opacity: 0;">
+            <header><h1 class="logo">Scan&Drive</h1></header>
+            <h2>Pronto a scansionare?</h2>
+            <p>Inquadra il codice a barre per iniziare una nuova sessione.</p>
+            <button id="btn-scan" class="btn-primary">Avvia Scansione</button>
+        </div>
+
+        <!-- STATO: SESSIONE_FOTO / UPLOAD -->
+        <div class="card state-view" id="view-session" style="display: none; opacity: 0;">
+            <div class="session-header">
+                <span class="badge">SESSIONE ATTIVA</span>
+                <h3 id="session-barcode">---</h3>
+            </div>
+            
+            <hr>
+
+            <div class="session-status">
+                <div class="status-row">
+                    <span>Foto caricate:</span>
+                    <strong id="status-count">0</strong>
+                </div>
+                <div class="status-row">
+                    <span>Ultimo file:</span>
+                    <span id="status-last-file" class="text-muted">Nessuno</span>
+                </div>
+            </div>
+
+            <!-- Box di caricamento dinamico per l'upload -->
+            <div id="session-uploader" style="display: none;">
+                <div class="loader"></div>
+                <p id="uploader-text">Caricamento su Drive...</p>
+            </div>
+
+            <div class="session-actions">
+                <button id="btn-take-photo" class="btn-primary">📸 Scatta Foto</button>
+                
+                <!-- Contenitore flessibile per i due tasti di chiusura -->
+                <div style="display: flex; gap: 10px; width: 100%;">
+                    <button id="btn-cancel-session" class="btn-secondary" style="flex: 1;">Esci / Resetta</button>
+                    <button id="btn-end-session" class="btn-secondary" style="flex: 1; background: #2a2a2a; color: var(--primary);">Fine e Apri</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Struttura dei Popup / Toast Custom -->
+    <div id="custom-popup-overlay" style="display: none; opacity: 0;">
+        <div id="custom-popup-card">
+            <h3 id="popup-title"></h3>
+            <p id="popup-message"></p>
+            <div id="popup-buttons">
+                <button id="btn-popup-cancel" class="btn-secondary">Annulla</button>
+                <button id="btn-popup-ok" class="btn-primary">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js" type="module"></script>
+</body>
+</html>
