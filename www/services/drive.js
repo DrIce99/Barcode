@@ -1,12 +1,10 @@
 const getPreferences = () => window.Capacitor?.Plugins?.Preferences;
 const getGoogleSignIn = () => window.Capacitor?.Plugins?.GoogleSignIn;
-
 const GOOGLE_CLIENT_ID = "169831826299-5892ag9cb5c4dqqco3emlr7tep87itjf.apps.googleusercontent.com";
 
 export const DriveService = {
     accessToken: null,
     isInitialized: false,
-    
     // Cache per evitare chiamate ripetitive a Drive nello stesso utilizzo
     packingListsFolderId: null,
     currentBarcodeFolderId: null,
@@ -18,7 +16,7 @@ export const DriveService = {
         if (googlePlugin) {
             await googlePlugin.initialize({
                 clientId: GOOGLE_CLIENT_ID,
-                scopes: ['https://www.googleapis.com/auth/drive.file']
+                scopes: ['https://www.googleapis.com/auth/drive']
             });
             this.isInitialized = true;
             console.log("[Drive] Plugin Google Sign-In inizializzato correttamente.");
@@ -28,7 +26,6 @@ export const DriveService = {
     async tentaLoginSilenzioso() {
         await this.assicuraInizializzazione();
         if (!getPreferences()) return false;
-        
         const { value: savedToken } = await getPreferences().get({ key: 'google_access_token' });
         if (savedToken) {
             this.accessToken = savedToken;
@@ -41,27 +38,21 @@ export const DriveService = {
     async loginManuale() {
         try {
             const googlePlugin = getGoogleSignIn();
-            
             if (!googlePlugin) {
                 console.log("[Drive Mock] Simulazione login su PC");
                 this.accessToken = "MOCK_TOKEN_PC";
                 return true;
             }
-
             await this.assicuraInizializzazione();
             const risultato = await googlePlugin.signIn();
             const googleToken = risultato.authentication?.accessToken || risultato.accessToken;
-
             if (!googleToken) {
                 throw new Error("Impossibile recuperare l'Access Token di Google.");
             }
-
             this.accessToken = googleToken;
-
             if (getPreferences()) {
                 await getPreferences().set({ key: 'google_access_token', value: googleToken });
             }
-
             return true;
         } catch (error) {
             console.error("[Drive] Errore durante il login Google nativo:", error);
@@ -75,7 +66,7 @@ export const DriveService = {
         if (parentId) {
             query += ` and '${parentId}' in parents`;
         }
-        
+
         // 1. Cerca se la cartella esiste già
         const cercaRisposta = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id)`, {
             method: 'GET',
@@ -88,7 +79,7 @@ export const DriveService = {
         if (cercaDati.files && cercaDati.files.length > 0) {
             return cercaDati.files[0].id; // Trovata! Ritorna l'ID esistente
         }
-        
+
         // 2. Se non esiste, la crea da zero
         const metaCartella = {
             name: nomeCartella,
@@ -97,7 +88,7 @@ export const DriveService = {
         if (parentId) {
             metaCartella.parents = [parentId];
         }
-        
+
         const creaRisposta = await fetch('https://www.googleapis.com/drive/v3/files', {
             method: 'POST',
             headers: {
@@ -112,45 +103,46 @@ export const DriveService = {
         return creaDati.id;
     },
 
-    //   Gestisce l'albero delle cartelle ("Packing Lists" -> "Codice_Barcode")
+    // Gestisce l'albero delle cartelle ("Packing Lists" -> "Codice_Barcode")
     async assicuraStrutturaCartelle(barcode) {
-        // Genera o recupera la cartella principale madre "Packing Lists"
         if (!this.packingListsFolderId) {
             this.packingListsFolderId = await this.trovaOCreaCartellaPura("Packing Lists");
         }
-        
-        // Genera o recupera la sottocartella specifica del Barcode attuale
         if (this.currentBarcode !== barcode || !this.currentBarcodeFolderId) {
             this.currentBarcodeFolderId = await this.trovaOCreaCartellaPura(barcode, this.packingListsFolderId);
             this.currentBarcode = barcode;
         }
-        
         return this.currentBarcodeFolderId;
     },
 
     // Carica la foto direttamente nella sottocartella corretta
     async caricaFoto(base64Data, nomeFile, barcode) {
         if (!this.accessToken) throw new Error("Nessun account Google configurato.");
-
+        
         // Recupera l'ID della cartella di destinazione (creandola se necessario)
         const folderId = await this.assicuraStrutturaCartelle(barcode);
+        console.log("[Drive] ID Cartella di destinazione:", folderId);
 
         // Inseriamo l'ID della cartella nei metadati del file ("parents")
         const metadata = { 
             name: nomeFile, 
             mimeType: 'image/jpeg', 
             description: `Barcode: ${barcode}`,
-            parents: [folderId] //   Caricamento mirato nella sottocartella!
+            parents: [folderId] 
         };
 
+        // Il boundary iniziale NON deve essere preceduto da \r\n
+        // altrimenti il parser di Google ignora i metadati JSON (e quindi la proprietà "parents")
         const boundary = 'foo_bar_boundary';
-        const delimiter = `\r\n--${boundary}\r\n`;
-        const closeDelimiter = `\r\n--${boundary}--`;
-
-        const multipartRequestBody =
-            delimiter + 'Content-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(metadata) +
-            delimiter + 'Content-Type: image/jpeg\r\n' + 'Content-Transfer-Encoding: base64\r\n\r\n' +
-            base64Data + closeDelimiter;
+        const multipartRequestBody = 
+            `--${boundary}\r\n` +
+            'Content-Type: application/json; charset=UTF-8\r\n\r\n' + 
+            JSON.stringify(metadata) + 
+            `\r\n--${boundary}\r\n` + 
+            'Content-Type: image/jpeg\r\n' + 
+            'Content-Transfer-Encoding: base64\r\n\r\n' + 
+            base64Data + 
+            `\r\n--${boundary}--`;
 
         const risposta = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
             method: 'POST',
@@ -163,8 +155,10 @@ export const DriveService = {
 
         if (!risposta.ok) {
             const dettagliErrore = await risposta.text();
+            console.error("[Drive] Errore risposta API:", dettagliErrore);
             throw new Error(`Errore Drive: ${dettagliErrore}`);
         }
+        
         return await risposta.json();
     }
 };

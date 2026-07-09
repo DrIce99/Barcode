@@ -14,17 +14,24 @@
 
     <div id="app-container">
         <div class="card state-view" id="view-auth">
-            <header><h1 class="logo">Scan&Drive</h1></header>
+            <header><h1 class="logo">Scansione Packing Lists</h1></header>
             <h2>Configurazione Iniziale</h2>
             <p>Accedi con l'account Google per abilitare il caricamento su Drive.</p>
             <button id="btn-google-login" class="btn-primary">Accedi con Google</button>
         </div>
         <!-- STATO: ATTESA_SCAN -->
-        <div class="card state-view" id="view-scan" style="display: none; opacity: 0;">
-            <header><h1 class="logo">Foto packing lists</h1></header>
-            <h2>Scansiona la packing list per iniziare</h2>
+            <div class="card state-view" id="view-scan" style="display: none; opacity: 0;">
+                <h2>Foto packing lists</h2>
             <p>Inquadra il codice a barre per iniziare una nuova sessione.</p>
             <button id="btn-scan" class="btn-primary">Avvia Scansione</button>
+            
+            <!-- BOX PER INSERIMENTO MANUALE -->
+            <div class="manual-input-container">
+                <p>Oppure inserisci manualmente il codice:</p>
+                <input type="text" id="input-manual-barcode" placeholder="Es. 800123456">
+                <br>
+                <button id="btn-manual-scan" class="btn-secondary">Conferma Codice</button>
+            </div>
         </div>
 
         <!-- STATO: SESSIONE_FOTO / UPLOAD -->
@@ -54,10 +61,8 @@
             <div class="session-actions">
                 <button id="btn-take-photo" class="btn-primary">Scatta Foto</button>
                 
-                <!-- Contenitore flessibile per i due tasti di chiusura -->
                 <div style="display: flex; gap: 10px; width: 100%;">
-                    <button id="btn-cancel-session" class="btn-secondary" style="flex: 1;">Esci / Resetta</button>
-                    <button id="btn-end-session" class="btn-secondary" style="flex: 1; background: #2a2a2a; color: var(--primary);">Fine e Apri</button>
+                    <button id="btn-end-session" class="btn-secondary" style="flex: 1; background: #2a2a2a; color: var(--primary);">Fine</button>
                 </div>
             </div>
         </div>

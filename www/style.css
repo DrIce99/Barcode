@@ -215,3 +215,34 @@ body.barcode-scanner-active .barcode-scanner-modal {
 }
 
 .status-box { background: #e9ecef; padding: 15px; margin: 15px 0; border-radius: 5px; }
+
+#input-manual-barcode {
+    box-sizing: border-box;
+    border: none;
+    margin: 15px auto 0 auto;
+    text-align: center;
+    padding: 15px 30px;
+    font-size: 1rem;
+    font-weight: bold;
+    border-radius: 8px;
+    width: 100%;
+    letter-spacing: 2px;
+    margin-top: 15px;
+    background-color: #333;
+    color: #eee;
+
+    transition: background-color 0.4s cubic-bezier(0.25, 1, 0.5, 1),
+                color 0.4s cubic-bezier(0.25, 1, 0.5, 1),
+                transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+#input-manual-barcode:focus {
+    background-color: #ffffff; 
+    color: #121212;            
+    outline: 2px solid var(--primary); 
+    transform: scale(1.03);    
+}
+
+#input-manual-barcode:focus::placeholder {
+    color: transparent;
+}
