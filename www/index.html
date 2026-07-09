@@ -4,23 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Scan&Drive Pro</title>
+    <script src="capacitor.js"></script>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/jsrsasign/10.9.0/jsrsasign-all-min.js"></script> -->
 </head>
 <body>
 
     <div id="app-container">
-        <!-- STATO: ATTESA_AUTENTICAZIONE -->
         <div class="card state-view" id="view-auth">
-            <h2>Verifica Accesso</h2>
-            <p>Connessione sicura a Google Drive...</p>
-            <div class="loader"></div>
+            <header><h1 class="logo">Scan&Drive</h1></header>
+            <h2>Configurazione Iniziale</h2>
+            <p>Accedi con l'account Google per abilitare il caricamento su Drive.</p>
+            <button id="btn-google-login" class="btn-primary">Accedi con Google</button>
         </div>
-
         <!-- STATO: ATTESA_SCAN -->
         <div class="card state-view" id="view-scan" style="display: none; opacity: 0;">
-            <header><h1 class="logo">Scan&Drive</h1></header>
-            <h2>Pronto a scansionare?</h2>
+            <header><h1 class="logo">Foto packing lists</h1></header>
+            <h2>Scansiona la packing list per iniziare</h2>
             <p>Inquadra il codice a barre per iniziare una nuova sessione.</p>
             <button id="btn-scan" class="btn-primary">Avvia Scansione</button>
         </div>
@@ -45,14 +47,12 @@
                 </div>
             </div>
 
-            <!-- Box di caricamento dinamico per l'upload -->
-            <div id="session-uploader" style="display: none;">
-                <div class="loader"></div>
-                <p id="uploader-text">Caricamento su Drive...</p>
+            <div id="session-uploader" style="display: none; text-align: center; margin: 15px 0; font-weight: bold; color: #4a90e2;">
+                <p id="uploader-text">Salvataggio...</p>
             </div>
 
             <div class="session-actions">
-                <button id="btn-take-photo" class="btn-primary">📸 Scatta Foto</button>
+                <button id="btn-take-photo" class="btn-primary">Scatta Foto</button>
                 
                 <!-- Contenitore flessibile per i due tasti di chiusura -->
                 <div style="display: flex; gap: 10px; width: 100%;">
@@ -73,6 +73,14 @@
                 <button id="btn-popup-ok" class="btn-primary">OK</button>
             </div>
         </div>
+    </div>
+    <div id="scanner-container" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 9999; flex-direction: column; align-items: center; justify-content: center;">
+        <h3 style="color: white; margin-bottom: 20px;">Inquadra il codice a barre</h3>
+        
+        <!-- Qui dentro apparirà il flusso video della telecamera -->
+        <div id="qr-reader" style="width: 100%; max-width: 350px; border: 2px solid var(--primary); border-radius: 8px; overflow: hidden;"></div>
+        
+        <button id="btn-stop-scanner" class="btn-secondary" style="margin-top: 30px; width: auto; padding: 12px 30px; background: #ff4a4a; color: white;">Annulla</button>
     </div>
 
     <script src="app.js" type="module"></script>

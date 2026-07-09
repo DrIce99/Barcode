@@ -1,5 +1,13 @@
 {
   "appId": "com.eurgd1.barcodedrive",
   "appName": "Barcode Drive",
-  "webDir": "www"
+  "webDir": "www",
+  "plugins": {
+    "GoogleSignIn": {
+      "clientId": "169831826299-5892ag9cb5c4dqqco3emlr7tep87itjf.apps.googleusercontent.com",
+      "scopes": [
+        "https://www.googleapis.com/auth/drive.file"
+      ]
+    }
+  }
 }

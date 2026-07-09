@@ -4,4 +4,5 @@
     <string name="title_activity_main">Barcode Drive</string>
     <string name="package_name">com.eurgd1.barcodedrive</string>
     <string name="custom_url_scheme">com.eurgd1.barcodedrive</string>
+    <string name="server_client_id">169831826299-5892ag9cb5c4dqqco3emlr7tep87itjf.apps.googleusercontent.com</string>
 </resources>

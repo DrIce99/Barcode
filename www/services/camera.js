@@ -1,15 +1,12 @@
-const Plugins = window.Capacitor?.Plugins;
-
 export const CameraService = {
     async catturaScatto() {
-        if (!Plugins?.Camera) {
-            // Fallback PC Browser
-            await new Promise(r => setTimeout(r, 500));
+        const Camera = window.Capacitor?.Plugins?.Camera;
+        if (!Camera) {
+            await new Promise(r => setTimeout(r, 400));
             return "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk"; 
         }
-
-        const image = await Plugins.Camera.getPhoto({
-            quality: 75,
+        const image = await Camera.getPhoto({
+            quality: 80,
             allowEditing: false,
             resultType: 'base64',
             source: 'CAMERA'

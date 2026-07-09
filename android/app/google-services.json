@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "169831826299",
+    "project_id": "packing-lists-eural",
+    "storage_bucket": "packing-lists-eural.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:169831826299:android:d186074f6d8fad8a48f3de",
+        "android_client_info": {
+          "package_name": "com.eurgd1.barcodedrive"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "169831826299-v0n064pqp63uuur1u3b3oeql62sh3fak.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.eurgd1.barcodedrive",
+            "certificate_hash": "c24cb83164da8bf8d2741db5dd8433fd65014b7e"
+          }
+        },
+        {
+          "client_id": "169831826299-5892ag9cb5c4dqqco3emlr7tep87itjf.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDOROCk922odzr1HHKgUeGrSRx8iiRfVDg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "169831826299-5892ag9cb5c4dqqco3emlr7tep87itjf.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

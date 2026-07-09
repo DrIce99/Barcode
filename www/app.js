@@ -1,62 +1,78 @@
-import { ApiService } from './services/api.js';
+// www/app.js
+
 import { ScannerService } from './services/scanner.js';
 import { CameraService } from './services/camera.js';
+import { DriveService } from './services/drive.js';
 import { Popup } from './services/popup.js';
 
-// Definizioni degli Stati dell'Applicazione
 const STATI = {
-    ATTESA_AUTENTICAZIONE: '#view-auth',
+    LOGIN_GOOGLE: '#view-auth',
     ATTESA_SCAN: '#view-scan',
     SESSIONE_FOTO: '#view-session'
 };
 
-let statoAttuale = STATI.ATTESA_AUTENTICAZIONE;
-let sessioneAttiva = null; // Sarà azzerata ad ogni ciclo
+let statoAttuale = null;
+let sessioneAttiva = null;
 
 document.addEventListener('DOMContentLoaded', initApp);
 
 async function initApp() {
     configuraListenerBottoni();
-    
-    try {
-        // Stato iniziale: login automatico invisibile
-        await ApiService.login();
-        Popup.toast("Connesso a Google Drive");
-        transizioneA(STATI.ATTESA_SCAN);
-    } catch (err) {
-        Popup.alert("Errore", "Impossibile autenticare l'applicazione.");
-    }
+
+    document.getElementById('btn-google-login')?.addEventListener('click', gestioneLoginManuale);
+
+    const giaAutenticato = await DriveService.tentaLoginSilenzioso();
+
+    if (giaAutenticato) {
+        //   RISOLUZIONE BUG SOVRAPPOSIZIONE: Nascondiamo esplicitamente la vista di login iniziale
+        const loginView = document.querySelector(STATI.LOGIN_GOOGLE);
+        if (loginView) {
+            loginView.style.display = 'none';
+            loginView.style.opacity = 0;
+        }
+
+        statoAttuale = STATI.ATTESA_SCAN;
+        const startView = document.querySelector(STATI.ATTESA_SCAN);
+        if (startView) {
+            startView.style.display = 'block';
+            startView.style.opacity = 1;
+        }
+    } else {
+        statoAttuale = STATI.LOGIN_GOOGLE;
+        transizioneA(STATI.LOGIN_GOOGLE);
+    }    
 }
 
 function configuraListenerBottoni() {
     document.getElementById('btn-scan').addEventListener('click', gestioneScansione);
     document.getElementById('btn-take-photo').addEventListener('click', gestioneScattoFoto);
-    document.getElementById('btn-end-session').addEventListener('click', gestioneChiusuraSessione);
     document.getElementById('btn-cancel-session').addEventListener('click', gestioneAnnullaSessione);
+    document.getElementById('btn-end-session').addEventListener('click', gestioneChiusuraSessione);
 }
 
-// ==========================================
-// LOGICA DEI FLUSSI ED EVENTI
-// ==========================================
+async function gestioneLoginManuale() {
+    try {
+        const successo = await DriveService.loginManuale();
+        if (successo) {
+            transizioneA(STATI.ATTESA_SCAN);
+        } else {
+            Popup.alert("Errore", "Login annullato o fallito.");
+        }
+    } catch (error) {
+        Popup.alert("Errore Login", error.message);
+    }
+}
 
 async function gestioneScansione() {
     try {
         const barcode = await ScannerService.scansiona();
-        if (!barcode) return; // Operazione annullata dall'utente
+        if (!barcode) return; // Se l'operatore annulla lo scanner ad apertura fotocamera
 
-        Popup.toast(`Codice identificato: ${barcode}`);
-        
-        // Entra in modalità creazione cartella sul server
-        const cartella = await ApiService.createFolder(barcode);
-        
-        // Generazione del tipo di dato "Sessione" come suggerito
         sessioneAttiva = {
             barcode: barcode,
-            folderId: cartella.folderId,
             fotoCaricate: 0
         };
 
-        // Aggiorna l'interfaccia di scatto fissa
         document.getElementById('session-barcode').innerText = sessioneAttiva.barcode;
         document.getElementById('status-count').innerText = "0";
         document.getElementById('status-last-file').innerText = "Nessuno";
@@ -64,7 +80,7 @@ async function gestioneScansione() {
         transizioneA(STATI.SESSIONE_FOTO);
 
     } catch (error) {
-        Popup.alert("Errore Scanner", error.message);
+        Popup.alert("Errore", error.message);
     }
 }
 
@@ -78,93 +94,86 @@ async function gestioneScattoFoto() {
         const base64Data = await CameraService.catturaScatto();
         if (!base64Data) return;
 
-        // Blocco UI Interfaccia locale durante l'upload (Aspetta l'esito reale)
         btnScatta.disabled = true;
         uploaderBox.style.display = 'block';
-
-        // Caricamento effettivo
-        const risposta = await ApiService.uploadPhoto(base64Data, sessioneAttiva.folderId, sessioneAttiva.fotoCaricate);
         
-        if (risposta.success) {
-            sessioneAttiva.fotoCaricate++;
-            
-            // Aggiorna la barra di stato in tempo reale
-            document.getElementById('status-count').innerText = sessioneAttiva.fotoCaricate;
-            document.getElementById('status-last-file').innerText = risposta.filename;
-            Popup.toast("✓ Foto salvata");
-        }
+        // Aggiorniamo il testo dell'interfaccia coerentemente col flusso cloud
+        document.getElementById('uploader-text').innerText = "Caricamento su Google Drive...";
+
+        // Generiamo il nome progressivo del file (es: 800123456_001.jpg)
+        const nomeFile = `${sessioneAttiva.barcode}_${String(sessioneAttiva.fotoCaricate + 1).padStart(3, '0')}.jpg`;
+
+        //   CARICAMENTO DIRETTO E UNICO SU GOOGLE DRIVE
+        await DriveService.caricaFoto(base64Data, nomeFile, sessioneAttiva.barcode);
+
+        // Se la chiamata fetch sopra non lancia errori, l'upload è andato a buon fine!
+        sessioneAttiva.fotoCaricate++;
+        document.getElementById('status-count').innerText = sessioneAttiva.fotoCaricate;
+        document.getElementById('status-last-file').innerText = nomeFile;
+        
+        Popup.toast("✓ Caricata correttamente su Drive");
 
     } catch (err) {
-        Popup.alert("Errore Caricamento", "Scatto interrotto o problema di rete durante l'upload.");
+        Popup.alert("Errore di Caricamento", err.message);
     } finally {
-        // Sblocca la UI e riporta l'operatore alla schermata principale di controllo dello scatto
         btnScatta.disabled = false;
         uploaderBox.style.display = 'none';
     }
 }
 
-async function gestioneChiusuraSessione() {
-    const conferma = await Popup.confirm("Termina Sessione", `Hai acquisito ${sessioneAttiva.fotoCaricate} foto. Vuoi chiudere?`);
-    if (!conferma) return;
-
-    const folderUrl = `https://drive.google.com/drive/folders/${sessioneAttiva.folderId}`;
-    
-    // Reset completo della sessione (Previene bug di sovrascrittura)
-    sessioneAttiva = null; 
-
-    Popup.toast("Apertura archivio...");
-    
-    setTimeout(() => {
-        window.open(folderUrl, '_system');
-        // Ritorna allo stato di ATTESA_SCAN pronto per un nuovo ciclo, senza riavviare l'app!
-        transizioneA(STATI.ATTESA_SCAN);
-    }, 1000);
-}
-
 async function gestioneAnnullaSessione() {
-    if (!sessioneAttiva) return;
-
-    // Chiediamo conferma per evitare tocchi accidentali
-    const conferma = await Popup.confirm(
-        "Annulla Sessione", 
-        "Vuoi tornare alla schermata iniziale? Nota: le foto eventualmente già scattate rimarranno salvate su Drive."
-    );
-    
+    const conferma = await Popup.confirm("Annulla Sessione", "Vuoi uscire? Le foto inviate rimarranno comunque salvate su Drive.");
     if (!conferma) return;
 
-    // Reset completo dello stato e della sessione
     sessioneAttiva = null;
-    window.idCartellaDriveReale = null;
-
-    Popup.toast("Sessione resettata");
-    
-    // Ritorna direttamente allo stato iniziale di attesa scan
+    Popup.toast("Sessione chiusa");
     transizioneA(STATI.ATTESA_SCAN);
 }
 
-// Engine della Macchina a Stati con Anime.js
+async function gestioneChiusuraSessione() {
+    await Popup.alert(
+        "Sessione Completata", 
+        `Hai archiviato correttamente ${sessioneAttiva.fotoCaricate} foto nella cartella 'Packing Lists/${sessioneAttiva.barcode}' su Google Drive.`
+    );
+    
+    sessioneAttiva = null; 
+    transizioneA(STATI.ATTESA_SCAN);
+}
+
 function transizioneA(nuovoStato) {
     const elementoUscita = statoAttuale;
     statoAttuale = nuovoStato;
 
-    anime({
-        targets: elementoUscita,
-        opacity: 0,
-        translateY: -20,
-        duration: 250,
-        easing: 'easeInQuad',
-        complete: () => {
-            document.querySelector(elementoUscita).style.display = 'none';
-            const entrata = document.querySelector(nuovoStato);
-            entrata.style.display = 'block';
-            
-            anime({
-                targets: nuovoStato,
-                opacity: [0, 1],
-                translateY: [20, 0],
-                duration: 350,
-                easing: 'easeOutQuad'
-            });
-        }
-    });
+    const elUscita = document.querySelector(elementoUscita);
+    const elEntrata = document.querySelector(nuovoStato);
+
+    if (!elEntrata) {
+        alert(`[Errore di ID] L'app sta provando a mostrare la schermata "${nuovoStato}", ma questo ID non esiste nel tuo file index.html!`);
+        return;
+    }
+
+    if (elUscita) {
+        anime({
+            targets: elementoUscita,
+            opacity: 0,
+            translateY: -20,
+            duration: 200,
+            easing: 'easeInQuad',
+            complete: () => {
+                elUscita.style.display = 'none';
+                elEntrata.style.display = 'block';
+                
+                anime({
+                    targets: nuovoStato,
+                    opacity: [0, 1],
+                    translateY: [20, 0],
+                    duration: 250,
+                    easing: 'easeOutQuad'
+                });
+            }
+        });
+    } else {
+        elEntrata.style.display = 'block';
+        elEntrata.style.opacity = 1;
+    }
 }
