@@ -47,6 +47,7 @@ function configuraListenerBottoni() {
     document.getElementById('btn-scan').addEventListener('click', gestioneScansione);
     document.getElementById('btn-take-photo').addEventListener('click', gestioneScattoFoto);
     document.getElementById('btn-end-session').addEventListener('click', gestioneChiusuraSessione);
+    document.getElementById('btn-manual-scan').addEventListener('click', gestioneScansioneManuale);
 }
 
 function avviaSessione(barcode) {

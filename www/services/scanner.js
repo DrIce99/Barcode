@@ -1,9 +1,21 @@
+const getScreenOrientation = () => window.Capacitor?.Plugins?.ScreenOrientation;
+
 export const ScannerService = {
     async scansiona() {
         // Fallback di sicurezza se la libreria non si carica (es. offline totale su PC)
         if (typeof Html5Qrcode === 'undefined') {
             console.warn("Libreria html5-qrcode non trovata. Uso prompt di simulazione.");
             return prompt("Codice simulato:", "800123456");
+        }
+
+        // Blocco rotazione schermo quando si inquadra barcode
+        if (getScreenOrientation()) {
+            try {
+                await getScreenOrientation().lock({ orientation: 'portrait' });
+                console.log("[Scanner] Orientamento bloccato in Portrait.");
+            } catch (err) {
+                console.error("[Scanner] Impossibile bloccare l'orientamento:", err);
+            }
         }
 
         return new Promise((resolve) => {
@@ -20,6 +32,18 @@ export const ScannerService = {
             const config = { 
                 fps: 10, 
                 qrbox: { width: 280, height: 150 } // Rettangolo di lettura per i codici a barre lineari
+            };
+
+            const sbloccaERisolvi = async (risultato) => {
+                if (getScreenOrientation()) {
+                    try {
+                        await getScreenOrientation().unlock();
+                        console.log("[Scanner] Orientamento sbloccato. Ripristinata rotazione di sistema.");
+                    } catch (err) {
+                        console.error("[Scanner] Errore durante lo sblocco dello schermo:", err);
+                    }
+                }
+                resolve(risultato);
             };
 
             // Funzione eseguita quando viene rilevato un codice
