@@ -7,12 +7,18 @@
     <script src="capacitor.js"></script>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
-    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="./libraries/html5-qrcode.min.js"></script>
     <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/jsrsasign/10.9.0/jsrsasign-all-min.js"></script> -->
 </head>
 <body>
 
     <div id="app-container">
+
+        <div id="connection-status" class="connection-status-bar status-online">
+            <span class="status-dot"></span>
+            <span id="connection-text">Verifica connessione...</span>
+        </div>
+        
         <div class="card state-view" id="view-auth">
             <header><h1 class="logo">Scansione Packing Lists</h1></header>
             <h2>Configurazione Iniziale</h2>
@@ -73,9 +79,10 @@
         <div id="custom-popup-card">
             <h3 id="popup-title"></h3>
             <p id="popup-message"></p>
-            <div id="popup-buttons">
-                <button id="btn-popup-cancel" class="btn-secondary">Annulla</button>
-                <button id="btn-popup-ok" class="btn-primary">OK</button>
+            <div id="popup-buttons" style="display: flex; gap: 10px; justify-content: center; width: 100%;">
+                <button id="btn-popup-delete" class="btn-secondary" style="display: none; background: #ff4a4a; color: white;">Elimina</button>
+                <button id="btn-popup-cancel" class="btn-secondary">No</button>
+                <button id="btn-popup-ok" class="btn-primary">Sì</button>
             </div>
         </div>
     </div>

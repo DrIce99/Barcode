@@ -4,6 +4,7 @@ import { ScannerService } from './services/scanner.js';
 import { CameraService } from './services/camera.js';
 import { DriveService } from './services/drive.js';
 import { Popup } from './services/popup.js';
+import { StorageService } from './services/storage.js';
 
 const STATI = {
     LOGIN_GOOGLE: '#view-auth',
@@ -18,6 +19,8 @@ document.addEventListener('DOMContentLoaded', initApp);
 
 async function initApp() {
     configuraListenerBottoni();
+
+    inizializzaIndicatoreConnessione();
 
     document.getElementById('btn-google-login')?.addEventListener('click', gestioneLoginManuale);
 
@@ -37,6 +40,8 @@ async function initApp() {
             startView.style.display = 'block';
             startView.style.opacity = 1;
         }
+
+        await controllaESincronizzaFotoPendenti();
     } else {
         statoAttuale = STATI.LOGIN_GOOGLE;
         transizioneA(STATI.LOGIN_GOOGLE);
@@ -110,15 +115,17 @@ async function gestioneScattoFoto() {
     const btnScatta = document.getElementById('btn-take-photo');
     const uploaderBox = document.getElementById('session-uploader');
 
+    let base64Data = null;
+    let nomeFile = ''; 
+
     try {
-        const base64Data = await CameraService.catturaScatto();
+        base64Data = await CameraService.catturaScatto();
         if (!base64Data) return;
         
         btnScatta.disabled = true;
         uploaderBox.style.display = 'block';
-        document.getElementById('uploader-text').innerText = "Caricamento su Google Drive...";
 
-        // Timestamp (YYYYMMDD-HH:MM:SS:MMM)
+        // Generazione del nome file univoca per tutto il blocco
         const now = new Date();
         const yyyy = now.getFullYear();
         const mm = String(now.getMonth() + 1).padStart(2, '0');
@@ -127,19 +134,43 @@ async function gestioneScattoFoto() {
         const min = String(now.getMinutes()).padStart(2, '0');
         const ss = String(now.getSeconds()).padStart(2, '0');
         const ms = String(now.getMilliseconds()).padStart(3, '0');
-        
         const timestamp = `${yyyy}${mm}${dd}-${hh}-${min}-${ss}-${ms}`;
         
-        const nomeFile = `${sessioneAttiva.barcode}_${timestamp}.jpg`;
-
-        await DriveService.caricaFoto(base64Data, nomeFile, sessioneAttiva.barcode);
+        nomeFile = `${sessioneAttiva.barcode}_${timestamp}.jpg`;
         
-        sessioneAttiva.fotoCaricate++;
-        document.getElementById('status-count').innerText = sessioneAttiva.fotoCaricate;
-        document.getElementById('status-last-file').innerText = nomeFile;
-        Popup.toast("Caricata correttamente su Drive");
+        // BIVIO DI RETE: Controlla la connessione prima di chiamare Drive
+        if (navigator.onLine) {
+            document.getElementById('uploader-text').innerText = "Caricamento su Google Drive...";
+            
+            await DriveService.caricaFoto(base64Data, nomeFile, sessioneAttiva.barcode);
+            
+            sessioneAttiva.fotoCaricate++;
+            document.getElementById('status-count').innerText = sessioneAttiva.fotoCaricate;
+            document.getElementById('status-last-file').innerText = nomeFile;
+            Popup.toast("Caricata correttamente su Drive");
+        } else {
+            // Lancia un errore per forzare il passaggio al blocco catch locale
+            throw new Error("Dispositivo offline");
+        }
+
     } catch (err) {
-        Popup.alert("Errore di Caricamento", err.message);
+        // Se Drive va in errore o il telefono è offline, salva in locale
+        try {
+            document.getElementById('uploader-text').innerText = "Salvataggio locale di emergenza...";
+            
+            // Assicuriamoci che la cartella del barcode esista in locale
+            await StorageService.creaCartellaBarcode(sessioneAttiva.barcode);
+            
+            // Salva fisicamente il file nella memoria interna usando il nome calcolato sopra
+            const salvataggioLocale = await StorageService.salvaFotoLocale(base64Data, sessioneAttiva.barcode, nomeFile);
+
+            sessioneAttiva.fotoCaricate++;
+            document.getElementById('status-count').innerText = sessioneAttiva.fotoCaricate;
+            document.getElementById('status-last-file').innerText = salvataggioLocale.filename + " (Locale)";
+            Popup.toast("Salvata in locale (Offline)");
+        } catch (localErr) {
+            Popup.alert("Errore Critico", "Impossibile salvare il file anche in locale: " + localErr.message); 
+        }
     } finally {
         btnScatta.disabled = false;
         uploaderBox.style.display = 'none';
@@ -201,4 +232,116 @@ function transizioneA(nuovoStato) {
         elEntrata.style.display = 'block';
         elEntrata.style.opacity = 1;
     }
+}
+
+async function controllaESincronizzaFotoPendenti(forzaEsecuzione = false) {
+    // 1. Se stiamo forzando l'esecuzione (es. al ritorno della rete), ignoriamo navigator.onLine
+    if (!forzaEsecuzione && !navigator.onLine) {
+        console.log("Sync annullata: il browser segnala ancora offline.");
+        return;
+    }
+
+    // 2. Recupera l'elenco delle foto salvate offline
+    const fotoPendenti = await StorageService.recuperaFotoPendenti();
+    console.log("🔍 DEBUG Sincronizzazione: Trovate", fotoPendenti.length, "foto in sospeso.");
+
+    if (fotoPendenti.length === 0) return;
+
+    // 3. Mostra il popup personalizzato a 3 opzioni
+    const risposta = await Popup.sync(
+        "Foto in sospeso",
+        `Sono presenti ${fotoPendenti.length} foto non caricate nel Drive. Caricarle ora?`
+    );
+
+    if (risposta === 'si') {
+        Popup.toast("Sincronizzazione avviata...");
+        let caricateConSuccesso = 0;
+
+        for (const foto of fotoPendenti) {
+            try {
+                const base64Contenuto = await StorageService.leggiFotoLocale(foto.path);
+                if (base64Contenuto) {
+                    await DriveService.caricaFoto(base64Contenuto, foto.filename, foto.barcode);
+                    await StorageService.eliminaFileLocale(foto.path);
+                    caricateConSuccesso++;
+                }
+            } catch (erroreUpload) {
+                console.error(`Impossibile sincronizzare il file ${foto.filename}:`, erroreUpload);
+                // Se il token è scaduto, lo vedremo qui nel console.error
+            }
+        }
+        
+        Popup.alert("Sincronizzazione Terminata", `Caricate con successo ${caricateConSuccesso} foto su Google Drive.`);
+
+    } else if (risposta === 'elimina') {
+        const confermaCancellazione = await Popup.confirm(
+            "Svuota Cache", 
+            "Sei sicuro di voler eliminare definitivamente tutte le foto salvate sul dispositivo?"
+        );
+        if (confermaCancellazione) {
+            for (const foto of fotoPendenti) {
+                await StorageService.eliminaFileLocale(foto.path);
+            }
+            Popup.toast("Tutte le foto locali sono state eliminate.");
+        }
+    }
+}
+
+function inizializzaIndicatoreConnessione() {
+    const barraStato = document.getElementById('connection-status');
+    const testoStato = document.getElementById('connection-text');
+
+    if (!barraStato || !testoStato) return;
+
+    function aggiornaVisualizzazione(forzaOnline) {
+        const statoOnline = (forzaOnline !== undefined) ? forzaOnline : navigator.onLine;
+
+        if (statoOnline) {
+            barraStato.classList.remove('status-offline');
+            barraStato.classList.add('status-online');
+            testoStato.innerText = "Connesso a Google Drive";
+        } else {
+            barraStato.classList.remove('status-online');
+            barraStato.classList.add('status-offline');
+            testoStato.innerText = "Modalità Locale (Offline)";
+        }
+    }
+
+    // FUNZIONE CORE: Gestisce il rientro sotto copertura di rete
+    async function gestisciRitornoOnline() {
+        aggiornaVisualizzazione(true);
+        Popup.toast("Rete rilevata! Ripristino sessione Drive..."); 
+        
+        try {
+            // 1. RINNOVO TOKEN: Chiamiamo il plugin per generare un token fresco, 
+            // sovrascrivendo quello vecchio/scaduto nelle Preferences.
+            await DriveService.loginManuale(); 
+        } catch (e) {
+            console.error("Errore nel refresh del token al ritorno online:", e);
+        }
+
+        // 2. Diamo 1.5 secondi alla rete per stabilizzarsi, poi avviamo la sync 
+        // passando 'true' per ignorare i falsi negativi di navigator.onLine
+        setTimeout(() => {
+            controllaESincronizzaFotoPendenti(true); 
+        }, 1500);
+    }
+
+    // Ascoltatori Standard
+    window.addEventListener('online', gestisciRitornoOnline);
+    window.addEventListener('offline', () => aggiornaVisualizzazione(false));
+
+    // Ascoltatore Nativo Capacitor (più affidabile su mobile)
+    const Network = window.Capacitor?.Plugins?.Network;
+    if (Network) {
+        Network.addListener('networkStatusChange', (status) => {
+            if (status.connected) {
+                gestisciRitornoOnline();
+            } else {
+                aggiornaVisualizzazione(false);
+            }
+        });
+    }
+
+    aggiornaVisualizzazione();
 }
