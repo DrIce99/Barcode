@@ -299,18 +299,18 @@ function inizializzaIndicatoreConnessione() {
         if (statoOnline) {
             barraStato.classList.remove('status-offline');
             barraStato.classList.add('status-online');
-            testoStato.innerText = "Connesso a Google Drive";
+            testoStato.innerText = "Online";
         } else {
             barraStato.classList.remove('status-online');
             barraStato.classList.add('status-offline');
-            testoStato.innerText = "Modalità Locale (Offline)";
+            testoStato.innerText = "Offline";
         }
     }
 
     // FUNZIONE CORE: Gestisce il rientro sotto copertura di rete
     async function gestisciRitornoOnline() {
         aggiornaVisualizzazione(true);
-        Popup.toast("Rete rilevata! Ripristino sessione Drive..."); 
+        Popup.toast("Rete rilevata: ripristino sessione Drive..."); 
         
         try {
             // 1. RINNOVO TOKEN: Chiamiamo il plugin per generare un token fresco, 
