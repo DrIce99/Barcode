@@ -50,7 +50,7 @@ export const ScannerService = {
             const onSuccess = (decodedText) => {
                 html5QrCode.stop().then(() => {
                     container.style.display = 'none';
-                    resolve(decodedText);
+                    sbloccaERisolvi(decodedText);
                 }).catch(err => console.error("Errore spegnimento fotocamera:", err));
             };
 
@@ -63,17 +63,17 @@ export const ScannerService = {
                     console.error("Impossibile avviare la fotocamera:", err);
                     alert("Errore fotocamera: " + err);
                     container.style.display = 'none';
-                    resolve(null);
+                    sbloccaERisolvi(null);
                 });
 
             // Gestione del tasto "Annulla"
             btnStop.onclick = () => {
                 html5QrCode.stop().then(() => {
                     container.style.display = 'none';
-                    resolve(null);
+                    sbloccaERisolvi(null);
                 }).catch(() => {
                     container.style.display = 'none';
-                    resolve(null);
+                    sbloccaERisolvi(null);
                 });
             };
         });
