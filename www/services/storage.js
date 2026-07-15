@@ -1,4 +1,5 @@
 const getFilesystem = () => window.Capacitor?.Plugins?.Filesystem;
+const getPreferences = () => window.Capacitor?.Plugins?.Preferences;
 
 export const StorageService = {
     async inizializza() {
@@ -102,5 +103,39 @@ export const StorageService = {
             path: percorsoFile,
             directory: 'DOCUMENTS'
         });
+    },
+
+    // Registro locale dei file già inviati con successo
+    async segnaComeSincronizzato(filename) {
+        if (!getPreferences()) return;
+        const { value } = await getPreferences().get({ key: 'files_sincronizzati' });
+        const libreria = value ? JSON.parse(value) : [];
+        if (!libreria.includes(filename)) {
+            libreria.push(filename);
+            await getPreferences().set({ key: 'files_sincronizzati', value: JSON.stringify(libreria) });
+        }
+    },
+
+    async isFileSincronizzato(filename) {
+        if (!getPreferences()) return false;
+        const { value } = await getPreferences().get({ key: 'files_sincronizzati' });
+        const libreria = value ? JSON.parse(value) : [];
+        return libreria.includes(filename);
+    },
+
+    // Elimina fisicamente l'elenco dei file passati (usato la domenica)
+    async svuotaTuttoLocale(listaFoto) {
+        const fs = getFilesystem();
+        if (!fs) return;
+        for (const foto of listaFoto) {
+            try {
+                await fs.deleteFile({
+                    path: foto.path,
+                    directory: 'DOCUMENTS'
+                });
+            } catch (e) {
+                console.error("Impossibile eliminare il file locale:", foto.path, e);
+            }
+        }
     }
 };
