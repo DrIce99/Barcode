@@ -1,3 +1,10 @@
+const getCapacitor = () => {
+    if (typeof window !== 'undefined' && window.Capacitor) return window.Capacitor;
+    if (typeof globalThis !== 'undefined' && globalThis.Capacitor) return globalThis.Capacitor;
+    if (typeof self !== 'undefined' && self.Capacitor) return self.Capacitor;
+    return null;
+};
+
 const getPreferences = () => window.Capacitor?.Plugins?.Preferences;
 const getGoogleSignIn = () => window.Capacitor?.Plugins?.GoogleSignIn;
 const GOOGLE_CLIENT_ID = "169831826299-5892ag9cb5c4dqqco3emlr7tep87itjf.apps.googleusercontent.com";
@@ -26,12 +33,18 @@ export const DriveService = {
     },
 
     async tentaLoginSilenzioso() {
-        await this.assicuraInizializzazione();
+        // In background l'SDK nativo potrebbe fallire l'inizializzazione: isoliamo l'errore
+        try {
+            await this.assicuraInizializzazione();
+        } catch (e) {
+            console.warn("[Drive] SDK Google non inizializzabile in background headless:", e);
+        }
+        
         if (!getPreferences()) return false;
         const { value: savedToken } = await getPreferences().get({ key: 'google_access_token' });
         if (savedToken) {
             this.accessToken = savedToken;
-            console.log("[Drive] Sessione Google Drive recuperata.");
+            console.log("[Drive] Sessione Google Drive recuperata con successo.");
             return true;
         }
         return false;
@@ -119,6 +132,9 @@ export const DriveService = {
 
     // Carica la foto direttamente nella sottocartella corretta
     async caricaFoto(base64Data, nomeFile, barcode) {
+        if (!this.accessToken) {
+            await this.tentaLoginSilenzioso();
+        }
         if (!this.accessToken) throw new Error("Nessun account Google configurato.");
         
         // Recupera l'ID della cartella di destinazione (creandola se necessario)

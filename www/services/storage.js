@@ -1,3 +1,10 @@
+const getCapacitor = () => {
+    if (typeof window !== 'undefined' && window.Capacitor) return window.Capacitor;
+    if (typeof globalThis !== 'undefined' && globalThis.Capacitor) return globalThis.Capacitor;
+    if (typeof self !== 'undefined' && self.Capacitor) return self.Capacitor;
+    return null;
+};
+
 const getFilesystem = () => window.Capacitor?.Plugins?.Filesystem;
 const getPreferences = () => window.Capacitor?.Plugins?.Preferences;
 
@@ -50,7 +57,7 @@ export const StorageService = {
         if (!fs) return [];
         const listaCompleta = [];
         try {
-            // 🟩 Sostituito Directory.Documents con 'DOCUMENTS'
+            // Sostituito Directory.Documents con 'DOCUMENTS'
             const root = await fs.readdir({ path: 'Packing Lists', directory: 'DOCUMENTS' });
 
             for (const cartella of root.files) {
@@ -58,7 +65,7 @@ export const StorageService = {
                 if (nomeCartella === '.' || nomeCartella === '..') continue;
 
                 try {
-                    // 🟩 Sostituito Directory.Documents con 'DOCUMENTS'
+                    // Sostituito Directory.Documents con 'DOCUMENTS'
                     const sottoCartella = await fs.readdir({
                         path: `Packing Lists/${nomeCartella}`,
                         directory: 'DOCUMENTS'
