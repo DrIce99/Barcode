@@ -8,13 +8,6 @@
       "scopes": [
         "https://www.googleapis.com/auth/drive.file"
       ]
-    },
-    "BackgroundRunner": {
-      "label": "com.eurgd1.barcodedrive.background",
-      "src": "background.js",
-      "event": "controlloPeriodico",
-      "interval": 15,
-      "autoStart": true
     }
   }
 }

@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -26,7 +29,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="com.googleusercontent.apps.241581605580-v3kjpungmmgrr1rtv1mjuuca1oq5bid4" android:host="oauth" />
+                <data android:scheme="com.googleusercontent.apps.169831826299-5892ag9cb5c4dqqco3emlr7tep87itjf" android:host="oauth"/>
             </intent-filter>
 
         </activity>
