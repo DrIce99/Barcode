@@ -6,8 +6,6 @@ import { DriveService } from './services/drive.js';
 import { Popup } from './services/popup.js';
 import { StorageService } from './services/storage.js';
 
-const getPreferences = () => window.Capacitor?.Plugins?.Preferences;
-
 const STATI = {
     LOGIN_GOOGLE: '#view-auth',
     ATTESA_SCAN: '#view-scan',
@@ -22,18 +20,6 @@ document.addEventListener('DOMContentLoaded', initApp);
 async function initApp() {
     configuraListenerBottoni();
     inizializzaIndicatoreConnessione();
-
-    try {
-        const { LocalNotifications } = window.Capacitor.Plugins;
-        if (LocalNotifications) {
-            const permessi = await LocalNotifications.checkPermissions();
-            if (permessi.display !== 'granted') {
-                await LocalNotifications.requestPermissions();
-            }
-        }
-    } catch (e) {
-        console.warn("Impossibile richiedere i permessi di notifica:", e);
-    }
 
     await StorageService.inizializza();
 
@@ -80,8 +66,8 @@ function avviaSessione(barcode) {
 
     sessioneAttiva = {
         barcode: cleanBarcode,
-        fotoCaricate: 0,
-        fotoLocali: 0
+        fotoSalvate: 0,
+        elencoFile: []
     };
     
     document.getElementById('session-barcode').innerText = sessioneAttiva.barcode;
@@ -132,36 +118,52 @@ async function gestioneScattoFoto() {
     const uploaderBox = document.getElementById('session-uploader');
 
     let base64Data = null;
+    let nomeFile = ''; 
 
-    // Acquisizione singola dello scatto
     try {
         base64Data = await CameraService.catturaScatto();
+        // Se per qualsiasi motivo (es. simulatore) restituisce null senza lanciare eccezioni
         if (!base64Data) return;
     } catch (cameraErr) {
+        // L'utente ha annullato la fotocamera o si è verificato un problema hardware.
+        // Usciamo silenziosamente senza fare nient'altro.
         console.log("Scatto annullato dall'utente:", cameraErr);
         return;
     }
 
-    // Salvataggio immediato in locale
     try {
         btnScatta.disabled = true;
         uploaderBox.style.display = 'block';
-        document.getElementById('uploader-text').innerText = "Scrittura file in locale...";
 
+        // Generazione del nome file univoca per tutto il blocco
         const now = new Date();
-        const timestamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}-${String(now.getMilliseconds()).padStart(3, '0')}`;
-        const nomeFile = `${sessioneAttiva.barcode}_${timestamp}.jpg`;
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const dd = String(now.getDate()).padStart(2, '0');
+        const hh = String(now.getHours()).padStart(2, '0');
+        const min = String(now.getMinutes()).padStart(2, '0');
+        const ss = String(now.getSeconds()).padStart(2, '0');
+        const ms = String(now.getMilliseconds()).padStart(3, '0');
+        const timestamp = `${yyyy}${mm}${dd}-${hh}-${min}-${ss}-${ms}`;
         
+        nomeFile = `${sessioneAttiva.barcode}_${timestamp}.jpg`;
+
         await StorageService.creaCartellaBarcode(sessioneAttiva.barcode);
         const salvataggioLocale = await StorageService.salvaFotoLocale(base64Data, sessioneAttiva.barcode, nomeFile);
+        const percorsoFile = `Packing Lists/${sessioneAttiva.barcode}/${nomeFile}`;
 
-        // Incrementiamo e aggiorniamo lo stato dell'app
-        sessioneAttiva.fotoCaricate++;
-        document.getElementById('status-count').innerText = sessioneAttiva.fotoCaricate;
-        document.getElementById('status-last-file').innerText = salvataggioLocale.filename;
-        Popup.toast("Foto salvata localmente");
-    } catch (localErr) {
-        Popup.alert("Errore Scrittura", "Impossibile salvare il file nel dispositivo: " + localErr.message);
+        sessioneAttiva.elencoFile.push({
+            barcode: sessioneAttiva.barcode,
+            filename: nomeFile,
+            path: percorsoFile
+        });
+        
+        sessioneAttiva.fotoSalvate++;
+        document.getElementById('status-count').innerText = sessioneAttiva.fotoSalvate;
+        document.getElementById('status-last-file').innerText = nomeFile;
+
+    } catch (err) {
+        Popup.alert("Errore Critico", "Impossibile salvare il file in locale: " + err.message);
     } finally {
         btnScatta.disabled = false;
         uploaderBox.style.display = 'none';
@@ -178,20 +180,73 @@ async function gestioneAnnullaSessione() {
 }
 
 async function gestioneChiusuraSessione() {
-    Popup.toast("Sincronizzazione sessione avviata...");
+    if (!sessioneAttiva) return;
 
-    const esitoSync = await sincronizzaTuttiIPendenti();
+    const btnScatta = document.getElementById('btn-take-photo'); 
+    const btnFine = document.getElementById('btn-end-session'); 
+    const uploaderBox = document.getElementById('session-uploader'); 
+    const uploaderText = document.getElementById('uploader-text'); 
 
-    if (esitoSync) {
-        if (getPreferences()) await getPreferences().set({ key: 'sync_check', value: 'true' });
-        await Popup.alert("Sessione Completata", `Tutte le ${sessioneAttiva.fotoCaricate} foto sono al sicuro sul telefono e caricate su Google Drive.`);
-    } else {
-        if (getPreferences()) await getPreferences().set({ key: 'sync_check', value: 'false' });
-        await Popup.alert("Sessione Salvata (Offline)", `Le foto (${sessioneAttiva.fotoCaricate}) sono salvate sul telefono. La sincronizzazione verrà completata in background ogni 15 minuti.`);
+    const totaleFoto = sessioneAttiva.elencoFile.length;
+
+    if (totaleFoto === 0) {
+        sessioneAttiva = null; 
+        transizioneA(STATI.ATTESA_SCAN); 
+        return;
     }
 
-    sessioneAttiva = null;
-    transizioneA(STATI.ATTESA_SCAN);
+    // Se siamo online, procediamo all'upload cumulativo su Drive
+    if (navigator.onLine) {
+        btnScatta.disabled = true;
+        btnFine.disabled = true;
+        uploaderBox.style.display = 'block';
+
+        let caricateConSuccesso = 0;
+
+        for (let i = 0; i < totaleFoto; i++) {
+            const foto = sessioneAttiva.elencoFile[i];
+            uploaderText.innerText = `Caricamento su Drive... (${i + 1}/${totaleFoto})`;
+
+            try {
+                // Leggiamo la foto salvata in locale
+                const base64Contenuto = await StorageService.leggiFotoLocale(foto.path); 
+                
+                if (base64Contenuto) {
+                    // Proviamo a caricarla
+                    await DriveService.caricaFoto(base64Contenuto, foto.filename, foto.barcode); 
+                    
+                    // Eliminiamo il file locale SOLO se il caricamento è andato a buon fine
+                    await StorageService.eliminaFileLocale(foto.path); 
+                    caricateConSuccesso++;
+                }
+            } catch (erroreUpload) {
+                console.error(`Impossibile caricare il file ${foto.filename} durante la chiusura:`, erroreUpload);
+            }
+        }
+
+        uploaderBox.style.display = 'none'; 
+        btnScatta.disabled = false;
+        btnFine.disabled = false;
+
+        let messaggio = '';
+        if (caricateConSuccesso === totaleFoto) {
+            messaggio = `Hai archiviato correttamente tutte le ${totaleFoto} foto su Google Drive nella cartella 'Packing Lists/${sessioneAttiva.barcode}'.`;
+        } else if (caricateConSuccesso > 0) {
+            messaggio = `Sincronizzazione parziale: caricate ${caricateConSuccesso} su ${totaleFoto} foto.\nLe rimanenti ${totaleFoto - caricateConSuccesso} foto sono rimaste in locale sul dispositivo e verranno caricate in seguito.`;
+        } else {
+            messaggio = `Impossibile stabilire una connessione stabile con Google Drive.\nTutte le ${totaleFoto} foto rimangono memorizzate sul telefono (Offline).`;
+        }
+
+        await Popup.alert("Sessione Completata", messaggio);
+
+    } else {
+        // Se siamo offline, l'utente viene notificato che il lavoro è protetto localmente
+        const messaggioOffline = `Dispositivo offline. Le ${totaleFoto} foto di questa sessione sono state salvate in locale sul telefono (nella cartella 'Packing Lists/${sessioneAttiva.barcode}').\n\nVerranno sincronizzate automaticamente non appena tornerà la rete.`;
+        await Popup.alert("Sessione Salvata Offline", messaggioOffline);
+    }
+    
+    sessioneAttiva = null; 
+    transizioneA(STATI.ATTESA_SCAN); 
 }
 
 function transizioneA(nuovoStato) {
@@ -283,33 +338,6 @@ async function controllaESincronizzaFotoPendenti(forzaEsecuzione = false) {
             Popup.toast("Tutte le foto locali sono state eliminate.");
         }
     }
-}
-
-// Funzione centralizzata per caricare i file non ancora sincronizzati
-async function sincronizzaTuttiIPendenti() {
-    if (!navigator.onLine) return false;
-
-    const fotoPendenti = await StorageService.recuperaFotoPendenti();
-    if (fotoPendenti.length === 0) return true;
-
-    let tuttoInviatoConSuccesso = true; // <-- CORRETTO (niente spazi!)
-
-    for (const foto of fotoPendenti) {
-        const giaInviato = await StorageService.isFileSincronizzato(foto.filename);
-        if (!giaInviato) {
-            try {
-                const base64 = await StorageService.leggiFotoLocale(foto.path);
-                if (base64) {
-                    await DriveService.caricaFoto(base64, foto.filename, foto.barcode);
-                    await StorageService.segnaComeSincronizzato(foto.filename);
-                }
-            } catch (err) {
-                console.error("Errore caricamento file singolo:", foto.filename, err);
-                tuttoInviatoConSuccesso = false;
-            }
-        }
-    }
-    return tuttoInviatoConSuccesso;
 }
 
 function inizializzaIndicatoreConnessione() {

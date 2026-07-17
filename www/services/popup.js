@@ -34,7 +34,7 @@ export const Popup = {
             const card = document.getElementById('custom-popup-card');
             const btnOk = document.getElementById('btn-popup-ok');
             const btnCancel = document.getElementById('btn-popup-cancel');
-            const btnDelete = document.getElementById('btn-popup-delete');
+            // const btnDelete = document.getElementById('btn-popup-delete');
 
             document.getElementById('popup-title').innerText = title;
             document.getElementById('popup-message').innerText = message;
@@ -43,7 +43,7 @@ export const Popup = {
             btnOk.innerText = "Sì";
             btnCancel.innerText = "No";
             btnCancel.style.display = 'block';
-            if (btnDelete) btnDelete.style.display = 'block';
+            // if (btnDelete) btnDelete.style.display = 'block';
 
             overlay.style.display = 'flex';
             anime.timeline()
@@ -52,11 +52,11 @@ export const Popup = {
 
             btnOk.onclick = () => chiudi('si');
             btnCancel.onclick = () => chiudi('no');
-            if (btnDelete) btnDelete.onclick = () => chiudi('elimina');
+            // if (btnDelete) btnDelete.onclick = () => chiudi('elimina');
 
             function chiudi(risultato) {
                 btnOk.onclick = null; btnCancel.onclick = null;
-                if (btnDelete) { btnDelete.onclick = null; btnDelete.style.display = 'none'; }
+                // if (btnDelete) { btnDelete.onclick = null; btnDelete.style.display = 'none'; }
                 
                 // Ripristina i testi standard per gli alert/confirm normali
                 btnOk.innerText = "OK";
