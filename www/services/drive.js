@@ -1,3 +1,10 @@
+const getCapacitor = () => {
+    if (typeof window !== 'undefined' && window.Capacitor) return window.Capacitor;
+    if (typeof globalThis !== 'undefined' && globalThis.Capacitor) return globalThis.Capacitor;
+    if (typeof self !== 'undefined' && self.Capacitor) return self.Capacitor;
+    return null;
+};
+
 const getPreferences = () => window.Capacitor?.Plugins?.Preferences;
 const getGoogleSignIn = () => window.Capacitor?.Plugins?.GoogleSignIn;
 const GOOGLE_CLIENT_ID = "169831826299-5892ag9cb5c4dqqco3emlr7tep87itjf.apps.googleusercontent.com";
@@ -16,20 +23,28 @@ export const DriveService = {
         if (googlePlugin) {
             await googlePlugin.initialize({
                 clientId: GOOGLE_CLIENT_ID,
-                scopes: ['https://www.googleapis.com/auth/drive']
+                scopes: [
+                    'https://www.googleapis.com/auth/drive',
+                    'https://www.googleapis.com/auth/gmail.send'
+                ]
             });
             this.isInitialized = true;
-            console.log("[Drive] Plugin Google Sign-In inizializzato correttamente.");
         }
     },
 
     async tentaLoginSilenzioso() {
-        await this.assicuraInizializzazione();
+        // In background l'SDK nativo potrebbe fallire l'inizializzazione: isoliamo l'errore
+        try {
+            await this.assicuraInizializzazione();
+        } catch (e) {
+            console.warn("[Drive] SDK Google non inizializzabile in background headless:", e);
+        }
+        
         if (!getPreferences()) return false;
         const { value: savedToken } = await getPreferences().get({ key: 'google_access_token' });
         if (savedToken) {
             this.accessToken = savedToken;
-            console.log("[Drive] Sessione Google Drive recuperata.");
+            console.log("[Drive] Sessione Google Drive recuperata con successo.");
             return true;
         }
         return false;
@@ -117,6 +132,9 @@ export const DriveService = {
 
     // Carica la foto direttamente nella sottocartella corretta
     async caricaFoto(base64Data, nomeFile, barcode) {
+        if (!this.accessToken) {
+            await this.tentaLoginSilenzioso();
+        }
         if (!this.accessToken) throw new Error("Nessun account Google configurato.");
         
         // Recupera l'ID della cartella di destinazione (creandola se necessario)
@@ -160,5 +178,38 @@ export const DriveService = {
         }
         
         return await risposta.json();
+    },
+
+    async inviaEmailReport(elencoFoto) {
+    if (!this.accessToken) throw new Error("Nessun account autenticato per l'invio email.");
+
+    const corpoReport = elencoFoto.map(f => `- ${f.barcode}/${f.filename}`).join('\r\n');
+    const dataOggi = new Date().toLocaleDateString('it-IT');
+
+    // Costruzione del payload MIME standard per le email
+    const emailContent = 
+        `To: me\r\n` + // "me" invia automaticamente all'account Google loggato
+        `Subject: Report Settimanale Archiviazione Packing Lists - ${dataOggi}\r\n` +
+        `Content-Type: text/plain; charset=utf-8\r\n\r\n` +
+        `Sincronizzazione domenicale completata con successo.\r\n` +
+        `Ecco l'elenco delle foto verificate e rimosse dal dispositivo:\r\n\r\n${corpoReport}`;
+    
+    // Codifica in Base64 Safe-URL richiesta dalle API Google
+    const base64Email = btoa(unescape(encodeURIComponent(emailContent)))
+        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+    const risposta = await fetch('https://www.googleapis.com/gmail/v1/users/me/messages/send', {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${this.accessToken}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ raw: base64Email })
+    });
+
+    if (!risposta.ok) {
+        const errText = await risposta.text();
+        throw new Error("Errore API Gmail: " + errText);
     }
+}
 };

@@ -1,4 +1,12 @@
+const getCapacitor = () => {
+    if (typeof window !== 'undefined' && window.Capacitor) return window.Capacitor;
+    if (typeof globalThis !== 'undefined' && globalThis.Capacitor) return globalThis.Capacitor;
+    if (typeof self !== 'undefined' && self.Capacitor) return self.Capacitor;
+    return null;
+};
+
 const getFilesystem = () => window.Capacitor?.Plugins?.Filesystem;
+const getPreferences = () => window.Capacitor?.Plugins?.Preferences;
 
 export const StorageService = {
     async inizializza() {
@@ -49,7 +57,7 @@ export const StorageService = {
         if (!fs) return [];
         const listaCompleta = [];
         try {
-            // 🟩 Sostituito Directory.Documents con 'DOCUMENTS'
+            // Sostituito Directory.Documents con 'DOCUMENTS'
             const root = await fs.readdir({ path: 'Packing Lists', directory: 'DOCUMENTS' });
 
             for (const cartella of root.files) {
@@ -57,7 +65,7 @@ export const StorageService = {
                 if (nomeCartella === '.' || nomeCartella === '..') continue;
 
                 try {
-                    // 🟩 Sostituito Directory.Documents con 'DOCUMENTS'
+                    // Sostituito Directory.Documents con 'DOCUMENTS'
                     const sottoCartella = await fs.readdir({
                         path: `Packing Lists/${nomeCartella}`,
                         directory: 'DOCUMENTS'
@@ -102,5 +110,39 @@ export const StorageService = {
             path: percorsoFile,
             directory: 'DOCUMENTS'
         });
+    },
+
+    // Registro locale dei file già inviati con successo
+    async segnaComeSincronizzato(filename) {
+        if (!getPreferences()) return;
+        const { value } = await getPreferences().get({ key: 'files_sincronizzati' });
+        const libreria = value ? JSON.parse(value) : [];
+        if (!libreria.includes(filename)) {
+            libreria.push(filename);
+            await getPreferences().set({ key: 'files_sincronizzati', value: JSON.stringify(libreria) });
+        }
+    },
+
+    async isFileSincronizzato(filename) {
+        if (!getPreferences()) return false;
+        const { value } = await getPreferences().get({ key: 'files_sincronizzati' });
+        const libreria = value ? JSON.parse(value) : [];
+        return libreria.includes(filename);
+    },
+
+    // Elimina fisicamente l'elenco dei file passati (usato la domenica)
+    async svuotaTuttoLocale(listaFoto) {
+        const fs = getFilesystem();
+        if (!fs) return;
+        for (const foto of listaFoto) {
+            try {
+                await fs.deleteFile({
+                    path: foto.path,
+                    directory: 'DOCUMENTS'
+                });
+            } catch (e) {
+                console.error("Impossibile eliminare il file locale:", foto.path, e);
+            }
+        }
     }
 };
