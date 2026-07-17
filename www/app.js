@@ -66,8 +66,8 @@ function avviaSessione(barcode) {
 
     sessioneAttiva = {
         barcode: cleanBarcode,
-        fotoCaricate: 0,
-        fotoLocali: 0
+        fotoSalvate: 0,
+        elencoFile: []
     };
     
     document.getElementById('session-barcode').innerText = sessioneAttiva.barcode;
@@ -147,41 +147,23 @@ async function gestioneScattoFoto() {
         const timestamp = `${yyyy}${mm}${dd}-${hh}-${min}-${ss}-${ms}`;
         
         nomeFile = `${sessioneAttiva.barcode}_${timestamp}.jpg`;
+
+        await StorageService.creaCartellaBarcode(sessioneAttiva.barcode);
+        const salvataggioLocale = await StorageService.salvaFotoLocale(base64Data, sessioneAttiva.barcode, nomeFile);
+        const percorsoFile = `Packing Lists/${sessioneAttiva.barcode}/${nomeFile}`;
+
+        sessioneAttiva.elencoFile.push({
+            barcode: sessioneAttiva.barcode,
+            filename: nomeFile,
+            path: percorsoFile
+        });
         
-        // BIVIO DI RETE: Controlla la connessione prima di chiamare Drive
-        if (navigator.onLine) {
-            document.getElementById('uploader-text').innerText = "Caricamento su Google Drive...";
-            
-            await DriveService.caricaFoto(base64Data, nomeFile, sessioneAttiva.barcode);
-            
-            sessioneAttiva.fotoCaricate++;
-            document.getElementById('status-count').innerText = sessioneAttiva.fotoCaricate;
-            document.getElementById('status-last-file').innerText = nomeFile;
-            Popup.toast("Caricata correttamente su Drive");
-        } else {
-            // Lancia un errore per forzare il passaggio al blocco catch locale
-            throw new Error("Dispositivo offline");
-        }
+        sessioneAttiva.fotoSalvate++;
+        document.getElementById('status-count').innerText = sessioneAttiva.fotoSalvate;
+        document.getElementById('status-last-file').innerText = nomeFile;
 
     } catch (err) {
-        // Se Drive va in errore o il telefono è offline, salva in locale
-        try {
-            document.getElementById('uploader-text').innerText = "Salvataggio locale di emergenza...";
-            
-            // Assicuriamoci che la cartella del barcode esista in locale
-            await StorageService.creaCartellaBarcode(sessioneAttiva.barcode);
-            
-            // Salva fisicamente il file nella memoria interna usando il nome calcolato sopra
-            const salvataggioLocale = await StorageService.salvaFotoLocale(base64Data, sessioneAttiva.barcode, nomeFile);
-
-            sessioneAttiva.fotoCaricate++;
-            sessioneAttiva.fotoLocali++;
-            document.getElementById('status-count').innerText = sessioneAttiva.fotoCaricate;
-            document.getElementById('status-last-file').innerText = salvataggioLocale.filename + " (Locale)";
-            Popup.toast("Salvata in locale (Offline)");
-        } catch (localErr) {
-            Popup.alert("Errore Critico", "Impossibile salvare il file anche in locale: " + localErr.message); 
-        }
+        Popup.alert("Errore Critico", "Impossibile salvare il file in locale: " + err.message);
     } finally {
         btnScatta.disabled = false;
         uploaderBox.style.display = 'none';
@@ -198,28 +180,73 @@ async function gestioneAnnullaSessione() {
 }
 
 async function gestioneChiusuraSessione() {
-    let messaggio = '';
+    if (!sessioneAttiva) return;
 
-    if (sessioneAttiva.fotoLocali === 0) {
-        // CASO 1: Tutte le foto sono andate online con successo su Drive
-        messaggio = `Hai archiviato correttamente ${sessioneAttiva.fotoCaricate} foto nella cartella 'Packing Lists/${sessioneAttiva.barcode}' su Google Drive.`;
-        
-    } else if (sessioneAttiva.fotoLocali === sessioneAttiva.fotoCaricate) {
-        // CASO 2: Tutto il lavoro è stato salvato offline in locale
-        messaggio = `Hai archiviato correttamente ${sessioneAttiva.fotoCaricate} foto in locale (nella cartella 'Packing Lists/${sessioneAttiva.barcode}' del dispositivo).\n\nVerranno sincronizzate automaticamente su Google Drive non appena tornerà la rete.`;
-        
-    } else {
-        // CASO 3: Sessione mista (la rete andava e veniva)
-        const fotoSuDrive = sessioneAttiva.fotoCaricate - sessioneAttiva.fotoLocali;
-        messaggio = `Sessione completata con una situazione mista:\n\n` +
-                    `${fotoSuDrive} foto sono già state caricate su Google Drive.\n` +
-                    `${sessioneAttiva.fotoLocali} foto sono state salvate in locale sul telefono (in attesa di copertura di rete per la sincronizzazione).`;
+    const btnScatta = document.getElementById('btn-take-photo'); 
+    const btnFine = document.getElementById('btn-end-session'); 
+    const uploaderBox = document.getElementById('session-uploader'); 
+    const uploaderText = document.getElementById('uploader-text'); 
+
+    const totaleFoto = sessioneAttiva.elencoFile.length;
+
+    if (totaleFoto === 0) {
+        sessioneAttiva = null; 
+        transizioneA(STATI.ATTESA_SCAN); 
+        return;
     }
 
-    await Popup.alert("Sessione Completata", messaggio);
+    // Se siamo online, procediamo all'upload cumulativo su Drive
+    if (navigator.onLine) {
+        btnScatta.disabled = true;
+        btnFine.disabled = true;
+        uploaderBox.style.display = 'block';
+
+        let caricateConSuccesso = 0;
+
+        for (let i = 0; i < totaleFoto; i++) {
+            const foto = sessioneAttiva.elencoFile[i];
+            uploaderText.innerText = `Caricamento su Drive... (${i + 1}/${totaleFoto})`;
+
+            try {
+                // Leggiamo la foto salvata in locale
+                const base64Contenuto = await StorageService.leggiFotoLocale(foto.path); 
+                
+                if (base64Contenuto) {
+                    // Proviamo a caricarla
+                    await DriveService.caricaFoto(base64Contenuto, foto.filename, foto.barcode); 
+                    
+                    // Eliminiamo il file locale SOLO se il caricamento è andato a buon fine
+                    await StorageService.eliminaFileLocale(foto.path); 
+                    caricateConSuccesso++;
+                }
+            } catch (erroreUpload) {
+                console.error(`Impossibile caricare il file ${foto.filename} durante la chiusura:`, erroreUpload);
+            }
+        }
+
+        uploaderBox.style.display = 'none'; 
+        btnScatta.disabled = false;
+        btnFine.disabled = false;
+
+        let messaggio = '';
+        if (caricateConSuccesso === totaleFoto) {
+            messaggio = `Hai archiviato correttamente tutte le ${totaleFoto} foto su Google Drive nella cartella 'Packing Lists/${sessioneAttiva.barcode}'.`;
+        } else if (caricateConSuccesso > 0) {
+            messaggio = `Sincronizzazione parziale: caricate ${caricateConSuccesso} su ${totaleFoto} foto.\nLe rimanenti ${totaleFoto - caricateConSuccesso} foto sono rimaste in locale sul dispositivo e verranno caricate in seguito.`;
+        } else {
+            messaggio = `Impossibile stabilire una connessione stabile con Google Drive.\nTutte le ${totaleFoto} foto rimangono memorizzate sul telefono (Offline).`;
+        }
+
+        await Popup.alert("Sessione Completata", messaggio);
+
+    } else {
+        // Se siamo offline, l'utente viene notificato che il lavoro è protetto localmente
+        const messaggioOffline = `Dispositivo offline. Le ${totaleFoto} foto di questa sessione sono state salvate in locale sul telefono (nella cartella 'Packing Lists/${sessioneAttiva.barcode}').\n\nVerranno sincronizzate automaticamente non appena tornerà la rete.`;
+        await Popup.alert("Sessione Salvata Offline", messaggioOffline);
+    }
     
-    sessioneAttiva = null;
-    transizioneA(STATI.ATTESA_SCAN);
+    sessioneAttiva = null; 
+    transizioneA(STATI.ATTESA_SCAN); 
 }
 
 function transizioneA(nuovoStato) {
